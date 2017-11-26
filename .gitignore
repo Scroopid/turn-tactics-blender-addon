@@ -33,6 +33,8 @@ cmake-build-debug/
 # IntelliJ
 out/
 
+__pycache__/
+
 # mpeltonen/sbt-idea plugin
 .idea_modules/
 
