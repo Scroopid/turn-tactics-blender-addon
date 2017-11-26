@@ -10,11 +10,32 @@ bl_info = {
 }
 
 import bpy
+from . import operator
+
+
+def menu_opt(self, context):
+    self.layout.operator(operator.TTModelExporter.bl_idname, text="Turn Tactics (.model)")
+
+classes = (
+    operator.TTModelExporter,
+)
 
 
 def register():
-    pass
+    bpy.types.INFO_MT_file_export.append(menu_opt)
+
+    from bpy.utils import register_class
+    for klass in classes:
+        register_class(klass)
 
 
 def unregister():
-    pass
+    bpy.types.INFO_MT_file_export.remove(menu_opt)
+
+    from bpy.utils import unregister_class
+    for klass in reversed(classes):
+        unregister_class(klass)
+
+
+if __name__ == "__main__":
+    register()
