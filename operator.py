@@ -1,4 +1,5 @@
 import bpy
+import time
 import ExportOptions
 
 from bpy.props import (
@@ -35,7 +36,8 @@ class TTModelExporter(bpy.types.Operator):
         (ExportOptions.MaterialAll, 'All', 'Exports all of the materials used in the scene'),
         (ExportOptions.MaterialLink, 'Link',
          'Only links the name of the material to the meshes, does not save material in '
-         'archive. Useful for using existing materials.'),
+         'archive. Useful for using existing materials. This is apart of the metadata and will not be linked if no '
+         'metadata is exported'),
         (ExportOptions.MaterialSave, 'Save',
          'Only saves the materials used by the various meshes. Useful for exporting materials.'),
         (ExportOptions.MaterialNoExport, 'None',
@@ -68,6 +70,7 @@ class TTModelExporter(bpy.types.Operator):
                                        items=animation_exportOpts)
 
     def execute(self, context):
+        start = time.time()
         filePath = bpy.path.ensure_ext(self.filepath, '.model')
         config = {
             ExportOptions.FilePathKey: filePath,
@@ -80,6 +83,8 @@ class TTModelExporter(bpy.types.Operator):
 
         from .ModelExporter import export_model
         export_model(context, config)
+
+        print("Export finished in %.4f seconds" % (time.time() - start))
         return {'FINISHED'}
 
     def invoke(self, context, event):
