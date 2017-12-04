@@ -1,6 +1,6 @@
 import bpy
 import time
-import ExportOptions
+from . import ExportOptions
 
 from bpy.props import (
     BoolProperty,

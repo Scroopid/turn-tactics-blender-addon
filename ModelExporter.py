@@ -1,5 +1,6 @@
 import bpy
 import bmesh
+import struct
 from . import ExportOptions
 
 MeshDataKey = 'mesh_data'
@@ -11,6 +12,15 @@ MetadataKey = 'metadata'
 MeshTransformsKey = 'mesh_transforms' # This stores what each of the local transformations for each of the meshes should be
 MaterialLinksKey = 'material_links'   # This stores each of the links to materials of the meshes in the engine
 AnimationsLinkKey = 'animation_links' # This stores links for each of the different meshes animations
+
+# Mesh encoder keys
+EncodedVertsKey = 'verts'
+EncodedNormalsKey = 'normals'
+EncodedUVsKey = 'uvs'
+EncodedIndicesKey = 'indices'
+EncodedVertsLengthKey = 'length'
+EncodedTrianglesCount = 'number_triangles'
+Epsilon = 0.0001
 
 # Lookup tables for export options
 _export_verts_lu = {
@@ -82,6 +92,61 @@ def _prepare_mesh_for_export(mesh_obj):
     return bmesh_obj
 
 
+def _convert_bmesh(bmesh_obj, export_uvs, uv_layer):
+    """
+    Converts the bmesh to an intermediate format for conversion into engine format
+    :param bmesh_obj: The bmesh object to convert
+    :param export_uvs: If we should export UVs from this object
+    :param uv_layer: The UV layer to export.
+    :return:
+    """
+    # Initialize intermediate format
+    index_trans = []
+    norms = []
+    verts = []
+    uvs = [None for _ in range(len(bmesh_obj.verts))]
+    trans_lists = [[] for _ in range(len(bmesh_obj.verts))]
+    # Initialize norms and verts to vertices in the model
+    for vert in bmesh_obj.verts:
+        norm = np.array([vert.normal.x, vert.normal.y, vert.normal.z])
+        v = np.array([vert.co.x, vert.co.y, vert.co.z])
+        verts.append(v)
+        norms.append(norm)
+    for face in bmesh_obj.faces:
+        for loop, vert in zip(face.loops, face.verts):
+            # If we are exporting UV's
+            if export_uvs:
+                # See if the uv doesnt exist
+                uv = np.array([loop[uv_layer].uv.x, loop[uv_layer].uv.y])
+
+                # If there is no UV recorded yet, just set the current index to this one
+                if uvs[vert.index] is None:
+                    uvs[vert.index] = uv
+                else:
+                    exst = uvs[vert.index]
+                    s = sum([abs(x - y) for (x, y) in zip(exst, uv)])
+                    if s > Epsilon:
+                        # We need to check the trans_list for a possible similar UV
+                        match_ind = None
+                        common_uvs = [(i, uvs[i]) for i in trans_lists[vert.index]]
+                        diffs = [(other[0], np.sum(np.absolute(uv - other[1]))) for other in common_uvs]
+                        matching = filter(lambda x: x[1] < Epsilon, diffs)
+                        if len(matching > 0):
+                            ind, _ = matching[0]
+                            index_trans.append(ind)
+                        else:
+                            # Copy UV, vert, norm into new index
+                            newTrans = len(verts)
+                            verts.append(verts[vert.index])
+                            norms.append(norms[vert.index])
+                            uvs.append(uv)
+                            trans_lists[vert.index].append(newTrans)
+            else:
+                # Just add to index_trans list
+                index_trans.append(vert.index)
+    return index_trans, norms, uvs, verts
+
+
 def save_data(encoded_data, file_path, context):
     """
     Saves the encoded_data into a compressed format for the engine.
@@ -114,14 +179,42 @@ def encode_mesh_data(bl_obj, export_opt):
 
     # Validate mesh options
     uv_layer = bmesh_obj.loops.layers.uv.active
-    if uv_layer is None:
+    if export_uvs and uv_layer is None:
+        bmesh_obj.free()
+        del bmesh_obj
         raise RuntimeError('Cannot encode mesh without UV when export_opt specifies to export UVs')
 
-    for face in bmesh_obj.faces:
-        print('Face %i' % face.index)
+    index_trans, norms, uvs, verts = _convert_bmesh(bmesh_obj, export_uvs, uv_layer)
 
-        for loop, vert in zip(face.loops, face.verts):
-            print(' - Loop for Vertex %i, UV = %r' % (face.index, loop[uv_layer].uv))
+    bmesh_obj.free()
+    del bmesh_obj
+
+    # Encode all of the mesh data into LE binary format
+    enc_vert = bytearray(len(verts)*12) if export_verts else None
+    enc_norm = bytearray(len(norms)*12) if export_norms else None
+    enc_uv = bytearray(len(uvs)*8) if export_uvs else None
+    enc_ind = bytearray(len(index_trans)*4)
+
+    for i in range(len(verts)):
+        if export_verts:
+            struct.pack_into("<fff", enc_vert, i*12, verts[i][0], verts[i][1], verts[i][2])
+        if export_norms:
+            struct.pack_into("<fff", enc_norm, i*12, norms[i][0], verts[i][1], verts[i][2])
+        if export_uvs:
+            struct.pack_into("<ff", enc_uv, i*8, uvs[i][0], uvs[i][1])
+
+    for i in range(len(index_trans)):
+        struct.pack_into("<I",enc_ind,  i*4, index_trans[i])
+
+    # Create dict to store all of the data to encode
+    return {
+        EncodedVertsLengthKey: int(len(verts) / 3),
+        EncodedTrianglesCount: int(len(index_trans) / 3),
+        EncodedVertsKey: enc_vert,
+        EncodedNormalsKey: enc_norm,
+        EncodedUVsKey: enc_uv,
+        EncodedIndicesKey: enc_ind
+    }
 
 
 def encode_material_data(bl_mat):
