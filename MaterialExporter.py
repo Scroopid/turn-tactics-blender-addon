@@ -234,6 +234,7 @@ def encode_material_data(obj, context):
 
     return eng_mat
 
+
 if __name__ == "__main__":
     obj = bpy.context.scene.objects.active.data
     encode_material_data(obj, bpy.context)
