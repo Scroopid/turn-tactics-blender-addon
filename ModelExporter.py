@@ -1,23 +1,18 @@
 import bpy
 
-from AnimationExporter import _is_mesh_animation_supported, encode_animation_data
-from MeshExporter import encode_mesh_data
 from . import ExportOptions
+from .AnimationExporter import _is_mesh_animation_supported, encode_animation_data
+from .MaterialExporter import encode_material_data
+from .MeshExporter import encode_mesh_data
 
 MeshDataKey = 'mesh_data'
 MaterialDataKey = 'material_data'
 AnimationDataKey = 'animation_data'
 MetadataKey = 'metadata'
+ExportedMeshesKey = 'meshes_exported'
 
 # Metadata keys
 MeshTransformsKey = 'mesh_transforms'  # This stores what each of the local transformations for each of the meshes should be
-MaterialLinksKey = 'material_links'  # This stores each of the links to materials of the meshes in the engine
-AnimationsLinkKey = 'animation_links'  # This stores links for each of the different meshes animations
-
-
-# Mesh encoder keys
-
-# Lookup tables for export options
 
 def _is_supported_export(obj):
     """
@@ -41,6 +36,33 @@ def save_data(encoded_data, file_path, context):
     :return: Bytes written to disk
     """
     pass
+
+
+def encode_transform_data(obj):
+    """
+    Encodes the translation data into an engine readable format.
+
+    :param obj: The object to pull the translation data from
+    :return: dict with translation data in it
+    """
+    trans_mat = {}
+    trans_mat['position'] = [float(obj.location[0]), float(obj.location[1]), float(obj.location[2])]
+    trans_mat['scale'] = [float(obj.scale[0]), float(obj.scale[1]), float(obj.scale[2])]
+
+    # Encode the rotation data now... check for quaternion
+    if obj.rotation_mode == 'QUATERNION':
+        trans_mat['mode'] = 'quaternion'
+        trans_mat['rotation'] = [float(obj.rotation_quaternion[0]), float(obj.rotation_quaternion[1]),
+                                 float(obj.rotation_quaternion[2]), float(obj.rotation_quaternion[3])]
+    elif obj.rotation_mode == 'AXIS_ANGLE':
+        print('No support for AXIS_ANGLE rotation... %s' % str(obj.name))
+        raise RuntimeError('AXIS_ANGLE not supported...')
+    else:
+        trans_mat['mode'] = obj.rotation_mode.lower()
+        trans_mat['rotation'] = [float(obj.rotation_euler[0]), float(obj.rotation_euler[1]),
+                                 float(obj.rotation_euler[2])]
+
+    return trans_mat
 
 
 def export_model(context, config):
@@ -71,8 +93,10 @@ def export_model(context, config):
     if config[ExportOptions.MaterialKey] == ExportOptions.MaterialNoExport:
         encoded_data[MaterialDataKey] = None
     else:
-        # TODO: Encode Material data
-        pass
+        objs = [obj for obj in scene_objs if obj.type == 'MESH']
+        export_opt = config[ExportOptions.MaterialKey]
+        encoded_data[MaterialDataKey] = dict(
+            [(obj.name, encode_material_data(obj, context, export_opt)) for obj in objs])
 
     # Encode animation data
     if config[ExportOptions.AnimationKey] == ExportOptions.AnimationNoExport:
@@ -81,10 +105,18 @@ def export_model(context, config):
         animated_objs = [obj for obj in scene_objs if _is_mesh_animation_supported(obj, context)]
         encoded_data[AnimationDataKey] = dict([(obj.name, encode_animation_data(obj)) for obj in animated_objs])
 
+    # No needed metadata to export yet...
     if not config[ExportOptions.EmitMetadataKey]:
         encoded_data[MetadataKey] = None
     else:
-        pass
+        encoded_data[MetadataKey] = None
+
+    # Export translation data for each object
+    encoded_data[MeshTransformsKey] = dict(
+        [(obj.name, encode_transform_data(obj)) for obj in scene_objs if obj.type == 'MESH'])
+    encoded_data[ExportedMeshesKey] = [obj.name for obj in scene_objs if obj.type == 'MESH']
+
+    return encoded_data
 
 
 if __name__ == "__main__":

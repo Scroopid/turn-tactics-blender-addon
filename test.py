@@ -232,6 +232,9 @@ def encode_material_data(obj, context):
     eng_mat['shadow']['receive_shadows'] = mat.use_shadows or mat.use_transparent_shadows or mat.use_only_shadow
     eng_mat['shadow']['buffer_bias'] = mat.shadow_buffer_bias
 
+    eng_mat['ambient'] = {}
+    eng_mat['ambient']['intensity'] = float(mat.ambient)
+
     return eng_mat
 
 if __name__ == "__main__":

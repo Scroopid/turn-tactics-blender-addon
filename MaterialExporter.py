@@ -2,6 +2,13 @@ import colorsys
 
 import bpy
 
+from . import ExportOptions
+
+ShadowPropKey = 'shadow'
+SpecularPropKey = 'specular'
+DiffusePropKey = 'diffuse'
+AmbientPropKey = 'ambient'
+
 DiffusePassKey = 'diffuse'
 SpecularPassKey = 'specular'
 AmbientPassKey = 'ambient'
@@ -194,43 +201,51 @@ def _get_color_prop(mat, for_stage):
         }
 
 
-def encode_material_data(obj, context):
+def encode_material_data(obj, context, export_opt):
     """
     Encodes the active material on the object into a game-engine format
 
     :param obj: Object to pull active material from
     :param context: Blender context that the object came from
+    :param export_opt: If set to link_only will only export the name of the material, otherwise will export whole material
+                        and link it.
     :return: dict with material encoded in engine format
     """
     # TODO: Export textures us
     print(obj.name)
 
-    mat = obj.materials[0]
-    eng_mat = {}
-    eng_mat['name'] = mat.name
-    eng_mat['type'] = mat.type
-    print(mat.name)
-    print(mat.type)
+    mat = obj.data.materials[0]
+    eng_mat = {'name': mat.name, 'type': mat.type}
+
+    if export_opt == ExportOptions.MaterialLink:
+        eng_mat['use_engine_mat'] = True
+        return eng_mat
+    else:
+        eng_mat['use_engine_mat'] = False
 
     # Diffuse props
-    eng_mat['diffuse'] = {}
-    eng_mat['diffuse']['type'] = _diffuse_shader_lu[mat.diffuse_shader]
-    eng_mat['diffuse']['color_type'] = _get_color_type(mat, DiffusePassKey)
-    eng_mat['diffuse']['color_props'] = _get_color_prop(mat, DiffusePassKey)
-    eng_mat['diffuse']['shader_config'] = _get_diffuse_shader_config(mat)
+    eng_mat[DiffusePropKey] = {}
+    eng_mat[DiffusePropKey]['type'] = _diffuse_shader_lu[mat.diffuse_shader]
+    eng_mat[DiffusePropKey]['color_type'] = _get_color_type(mat, DiffusePassKey)
+    eng_mat[DiffusePropKey]['color_props'] = _get_color_prop(mat, DiffusePassKey)
+    eng_mat[DiffusePropKey]['shader_config'] = _get_diffuse_shader_config(mat)
 
     # Specular props
-    eng_mat['specular'] = {}
-    eng_mat['specular']['type'] = _specular_shader_lu[mat.specular_shader]
-    eng_mat['specular']['color_type'] = _get_color_type(mat, SpecularPassKey)
-    eng_mat['specular']['color_props'] = _get_color_prop(mat, SpecularPassKey)
-    eng_mat['specular']['shader_config'] = _get_specular_shader_config(mat)
+    eng_mat[SpecularPropKey] = {}
+    eng_mat[SpecularPropKey]['type'] = _specular_shader_lu[mat.specular_shader]
+    eng_mat[SpecularPropKey]['color_type'] = _get_color_type(mat, SpecularPassKey)
+    eng_mat[SpecularPropKey]['color_props'] = _get_color_prop(mat, SpecularPassKey)
+    eng_mat[SpecularPropKey]['shader_config'] = _get_specular_shader_config(mat)
 
     # Shadow Props
-    eng_mat['shadow'] = {}
-    eng_mat['shadow']['cast_shadows'] = mat.use_cast_shadows or mat.use_cast_shadows_only or mat.use_cast_buffer_shadows
-    eng_mat['shadow']['receive_shadows'] = mat.use_shadows or mat.use_transparent_shadows or mat.use_only_shadow
-    eng_mat['shadow']['buffer_bias'] = mat.shadow_buffer_bias
+    eng_mat[ShadowPropKey] = {}
+    eng_mat[ShadowPropKey][
+        'cast_shadows'] = mat.use_cast_shadows or mat.use_cast_shadows_only or mat.use_cast_buffer_shadows
+    eng_mat[ShadowPropKey]['receive_shadows'] = mat.use_shadows or mat.use_transparent_shadows or mat.use_only_shadow
+    eng_mat[ShadowPropKey]['buffer_bias'] = mat.shadow_buffer_bias
+
+    eng_mat[AmbientPropKey] = {}
+    eng_mat[AmbientPropKey]['intensity'] = float(mat.ambient)
 
     return eng_mat
 

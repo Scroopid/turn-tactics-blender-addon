@@ -10,8 +10,8 @@ bl_info = {
 }
 
 import bpy
+
 from . import operator
-from . import ExportOptions
 
 
 def menu_opt(self, context):

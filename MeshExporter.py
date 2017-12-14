@@ -3,7 +3,7 @@ import struct
 import bmesh
 import numpy as np
 
-import ExportOptions
+from . import ExportOptions
 
 EncodedVertsKey = 'verts'
 EncodedNormalsKey = 'normals'
@@ -72,12 +72,14 @@ def _convert_bmesh(bmesh_obj, export_uvs, uv_layer):
     verts = []
     uvs = [None for _ in range(len(bmesh_obj.verts))]
     trans_lists = [[] for _ in range(len(bmesh_obj.verts))]
+
     # Initialize norms and verts to vertices in the model
     for vert in bmesh_obj.verts:
         norm = np.array([vert.normal.x, vert.normal.y, vert.normal.z])
         v = np.array([vert.co.x, vert.co.y, vert.co.z])
         verts.append(v)
         norms.append(norm)
+
     for face in bmesh_obj.faces:
         for loop, vert in zip(face.loops, face.verts):
             # If we are exporting UV's
@@ -93,11 +95,11 @@ def _convert_bmesh(bmesh_obj, export_uvs, uv_layer):
                     s = sum([abs(x - y) for (x, y) in zip(exst, uv)])
                     if s > Epsilon:
                         # We need to check the trans_list for a possible similar UV
-                        match_ind = None
                         common_uvs = [(i, uvs[i]) for i in trans_lists[vert.index]]
                         diffs = [(other[0], np.sum(np.absolute(uv - other[1]))) for other in common_uvs]
-                        matching = filter(lambda x: x[1] < Epsilon, diffs)
-                        if len(matching > 0):
+                        matching = list(filter(lambda x: x[1] < Epsilon, diffs))
+
+                        if len(matching) > 0:
                             ind, _ = matching[0]
                             index_trans.append(ind)
                         else:
@@ -110,6 +112,7 @@ def _convert_bmesh(bmesh_obj, export_uvs, uv_layer):
             else:
                 # Just add to index_trans list
                 index_trans.append(vert.index)
+
     return index_trans, norms, uvs, verts
 
 
@@ -125,7 +128,7 @@ def encode_mesh_data(bl_obj, export_opt):
     print('Exporting %s mesh data' % bl_obj.name)
 
     # Prep mesh for export
-    bmesh_obj = _prepare_mesh_for_export(bl_obj)
+    bmesh_obj = _prepare_mesh_for_export(bl_obj.data)
 
     export_verts = _export_verts_lu[export_opt]
     export_uvs = _export_uvs_lu[export_opt]

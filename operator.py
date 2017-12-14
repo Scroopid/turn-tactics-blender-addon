@@ -1,12 +1,13 @@
-import bpy
 import time
-from . import ExportOptions
 
+import bpy
 from bpy.props import (
     BoolProperty,
     EnumProperty,
     StringProperty
 )
+
+from . import ExportOptions
 
 
 class TTModelExporter(bpy.types.Operator):
@@ -38,8 +39,6 @@ class TTModelExporter(bpy.types.Operator):
          'Only links the name of the material to the meshes, does not save material in '
          'archive. Useful for using existing materials. This is apart of the metadata and will not be linked if no '
          'metadata is exported'),
-        (ExportOptions.MaterialSave, 'Save',
-         'Only saves the materials used by the various meshes. Useful for exporting materials.'),
         (ExportOptions.MaterialNoExport, 'None',
          'Does not export any material data, sets meshes material property to default (Lambert gray).')
     )
@@ -82,7 +81,9 @@ class TTModelExporter(bpy.types.Operator):
         }
 
         from .ModelExporter import export_model
-        export_model(context, config)
+        from .ModelCompressor import save_model
+        encoded_data = export_model(context, config)
+        save_model(encoded_data, filePath)
 
         print("Export finished in %.4f seconds" % (time.time() - start))
         return {'FINISHED'}

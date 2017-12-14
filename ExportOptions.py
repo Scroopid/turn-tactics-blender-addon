@@ -14,7 +14,6 @@ MaterialKey = 'material_export'
 MaterialAll = 'All' # Export all material data, and link it to the meshes in the model
 MaterialNoExport = 'No_Export' # Do not export any material data
 MaterialLink = 'Link_Only' # Link the meshes in the model only
-MaterialSave = 'Save_Only' # Save the material properties only
 
 # Animation config options
 AnimationKey = 'animation_export'
